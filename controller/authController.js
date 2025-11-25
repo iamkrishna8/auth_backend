@@ -20,7 +20,7 @@ const CookieOptions = {
 const createSendToken = (user, statusCode, res) => {
   const token = signToken(user._id);
 
-  res.cookie("jwt", token, CookieOptions);
+  res.cookie("token", token, CookieOptions);
 
   user.password = undefined;
 
@@ -163,5 +163,366 @@ exports.logout = catchAsync(async (req, res, next) => {
   res.status(200).json({
     status: "success",
     message: "User logged out successfully",
+  });
+});
+
+// send verification Otp to the User's Email
+exports.sendVerifyOtp = catchAsync(async (req, res, next) => {
+  const { userId } = req.body;
+
+  const user = await User.findById(userId);
+
+  if (user.isAccountVerified) {
+    return res.json({ status: "success", message: "Account already Verified" });
+  }
+
+  const otp = String(Math.floor(100000 + Math.random() * 900000));
+
+  user.verifyOtp = otp;
+  user.verifyOtpExpires = Date.now() + 24 * 60 * 60 * 1000;
+
+  const htmlContentotp = `
+<html>
+  <body style="font-family: Arial, sans-serif; background-color:#eef5f1; padding:25px;">
+
+    <table width="100%" cellspacing="0" cellpadding="0" 
+      style="max-width:620px; margin:auto; background:#ffffff; border-radius:12px; 
+      overflow:hidden; border:1px solid #dce7e1; box-shadow:0 6px 20px rgba(0,0,0,0.08);">
+
+      <!-- Header Banner -->
+      <tr>
+        <td style="padding:0;">
+          <img src="https://raw.githubusercontent.com/iamkrishna8/auth_frontend/main/testimage_email.png?raw=1"
+               alt="EDHR Banner"
+               style="width:100%; height:auto; display:block;">
+        </td>
+      </tr>
+
+      <!-- Header / Title -->
+      <tr>
+        <td style="background:#2e7d32; padding:22px; text-align:center; color:#ffffff;">
+          <h2 style="margin:0; font-size:26px; letter-spacing:0.5px;">
+            Email Verification Required
+          </h2>
+        </td>
+      </tr>
+
+      <!-- Body Content -->
+      <tr>
+        <td style="padding:30px; color:#333; line-height:1.7;">
+
+          
+
+          <p style="font-size:15px;">
+            To complete your registration and secure your EDHR account, please verify your email address.
+          </p>
+
+          <p style="font-size:15px; margin-bottom:20px;">
+            Use the One-Time Password (OTP) below:
+          </p>
+
+          <!-- OTP Box -->
+          <div style="
+            width:100%; 
+            text-align:center; 
+            margin:25px 0; 
+            padding:18px 0; 
+            border:1px dashed #2e7d32; 
+            background:#f4faf6; 
+            border-radius:8px;
+          ">
+            <span style="font-size:28px; letter-spacing:4px; font-weight:700; color:#2e7d32;">
+              ${otp}
+            </span>
+          </div>
+
+          <p style="font-size:15px;">
+            This OTP is valid for the next <strong>10 minutes</strong>.  
+            Please do not share it with anyone for security reasons.
+          </p>
+
+          <p style="margin-top:25px; font-size:15px;">
+            If you did not request this, you can safely ignore this email.
+          </p>
+
+          <p style="font-size:15px; margin-top:8px;">
+            Regards,<br>
+            <strong style="color:#2e7d32;">EDHR Team</strong>
+          </p>
+
+        </td>
+      </tr>
+
+      <!-- Footer -->
+      <tr>
+        <td style="background:#f3f7f5; text-align:center; padding:15px; 
+            font-size:12px; color:#777; border-top:1px solid #e1ebe6;">
+          © ${new Date().getFullYear()} EDHR. All rights reserved.
+        </td>
+      </tr>
+    </table>
+
+  </body>
+</html>
+`;
+
+  await user.save();
+  sendEmail(user.email, "Account verification Otp", htmlContentotp);
+});
+
+exports.verifyEmail = catchAsync(async (req, res, next) => {
+  const { userId, otp } = req.body;
+
+  if (!userId || !otp) {
+    return next(new AppError("Missing Details", 400));
+  }
+
+  const user = await User.findById(userId);
+
+  if (!user) {
+    return next(new AppError("User Not Found", 401));
+  }
+
+  if (user.verifyOtp === "" || user.verifyOtp !== otp) {
+    return next(new AppError("Invalid OTP", 401));
+  }
+
+  if (User.verifyOtpExpires < Date.now()) {
+    return next(new AppError("OTP Expired", 401));
+  }
+
+  user.isAccountVerified = true;
+
+  user.verifyOtp = "";
+  user.verifyOtpExpires = 0;
+
+  await user.save();
+
+  res.status(200).json({
+    status: "success",
+    message: "Email verified Successfully",
+  });
+});
+
+// check if user is Authenticateds
+exports.isAuthenticated = catchAsync(async (req, res, next) => {
+  return res.json({ status: "Success" });
+});
+
+// send PassWord Reset OTP
+
+exports.sendResetOTP = catchAsync(async (req, res, next) => {
+  const { email } = req.body;
+
+  if (!email) {
+    return next(new AppError("Email is required"));
+  }
+
+  const user = await User.findOne({ email });
+
+  if (!user) {
+    return next(new AppError("No User Existed With this Email Adress", 400));
+  }
+
+  const otp = String(Math.floor(100000 + Math.random() * 900000));
+
+  user.resetOtp = otp;
+  user.resetOtpExpires = Date.now() + 10 * 60 * 60 * 1000;
+
+  const htmlContentotp = `
+<html>
+  <body style="font-family: Arial, sans-serif; background-color:#eef5f1; padding:25px;">
+
+    <table width="100%" cellspacing="0" cellpadding="0" 
+      style="max-width:620px; margin:auto; background:#ffffff; border-radius:12px; 
+      overflow:hidden; border:1px solid #dce7e1; box-shadow:0 6px 20px rgba(0,0,0,0.08);">
+
+      <!-- Header Banner -->
+      <tr>
+        <td style="padding:0;">
+          <img src="https://raw.githubusercontent.com/iamkrishna8/auth_frontend/main/testimage_email.png?raw=1"
+               alt="EDHR Banner"
+               style="width:100%; height:auto; display:block;">
+        </td>
+      </tr>
+
+      <!-- Header / Title -->
+      <tr>
+        <td style="background:#2e7d32; padding:22px; text-align:center; color:#ffffff;">
+          <h2 style="margin:0; font-size:26px; letter-spacing:0.5px;">
+            Password Reset Request
+          </h2>
+        </td>
+      </tr>
+
+      <!-- Body Content -->
+      <tr>
+        <td style="padding:30px; color:#333; line-height:1.7;">
+
+          <p style="font-size:16px; margin-top:0;">
+            Hello <strong>${user.name}</strong>,
+          </p>
+
+          <p style="font-size:15px;">
+            We received a request to reset your password for your EDHR account.
+            To continue with the reset, please use the One-Time Password (OTP) provided below.
+          </p>
+
+          <p style="font-size:15px; margin-bottom:20px;">
+            Your password reset OTP:
+          </p>
+
+          <!-- OTP Box -->
+          <div style="
+            width:100%; 
+            text-align:center; 
+            margin:25px 0; 
+            padding:18px 0; 
+            border:1px dashed #2e7d32; 
+            background:#f4faf6; 
+            border-radius:8px;
+          ">
+            <span style="font-size:28px; letter-spacing:4px; font-weight:700; color:#2e7d32;">
+              ${otp}
+            </span>
+          </div>
+
+          <p style="font-size:15px;">
+            This OTP is valid for the next <strong>10 minutes</strong>.  
+            For your security, please do not share this code with anyone.
+          </p>
+
+          <p style="margin-top:25px; font-size:15px;">
+            If you did not request a password reset, please ignore this email. 
+            Your account will remain safe.
+          </p>
+
+          <p style="font-size:15px; margin-top:8px;">
+            Regards,<br>
+            <strong style="color:#2e7d32;">EDHR Team</strong>
+          </p>
+
+        </td>
+      </tr>
+
+      <!-- Footer -->
+      <tr>
+        <td style="background:#f3f7f5; text-align:center; padding:15px; 
+            font-size:12px; color:#777; border-top:1px solid #e1ebe6;">
+          © ${new Date().getFullYear()} EDHR. All rights reserved.
+        </td>
+      </tr>
+
+    </table>
+
+  </body>
+</html>
+`;
+
+  await user.save();
+  sendEmail(user.email, "Account Reset Otp", htmlContentotp);
+});
+
+// Reset User Password
+exports.resetPassword = catchAsync(async (req, res, next) => {
+  const { email, otp, newpassword } = req.body;
+
+  if (!email || !otp || !newpassword) {
+    return next(new AppError("Email,OTP and new password are required", 400));
+  }
+  const user = await User.findOne({ email });
+
+  if (!user) {
+    return next(new AppError("User Not Found", 401));
+  }
+
+  if (user.resetOtp === "" || user.resetOtp !== otp) {
+    return next(new AppError("Invalid OTP", 400));
+  }
+
+  if (user.resetOtpExpires < Date.now()) {
+    return next(new AppError("OTP Expired", 400));
+  }
+
+  user.password = newpassword;
+  user.resetOtp = "";
+  user.resetOtpExpires = 0;
+
+  await user.save();
+
+  const htmlContentSuccess = `
+<html>
+  <body style="font-family: Arial, sans-serif; background-color:#eef5f1; padding:25px;">
+
+    <table width="100%" cellspacing="0" cellpadding="0" 
+      style="max-width:620px; margin:auto; background:#ffffff; border-radius:12px; 
+      overflow:hidden; border:1px solid #dce7e1; box-shadow:0 6px 20px rgba(0,0,0,0.08);">
+
+      <!-- Header Banner -->
+      <tr>
+        <td style="padding:0;">
+          <img src="https://raw.githubusercontent.com/iamkrishna8/auth_frontend/main/testimage_email.png?raw=1"
+               alt="EDHR Banner"
+               style="width:100%; height:auto; display:block;">
+        </td>
+      </tr>
+
+      <!-- Header / Title -->
+      <tr>
+        <td style="background:#2e7d32; padding:22px; text-align:center; color:#ffffff;">
+          <h2 style="margin:0; font-size:26px; letter-spacing:0.5px;">
+            Password Reset Successful
+          </h2>
+        </td>
+      </tr>
+
+      <!-- Body Content -->
+      <tr>
+        <td style="padding:30px; color:#333; line-height:1.7;">
+
+          <p style="font-size:16px; margin-top:0;">
+            Hello <strong>${user.name}</strong>,
+          </p>
+
+          <p style="font-size:15px;">
+            This is a confirmation that the password for your EDHR account has been successfully reset.
+          </p>
+
+          <p style="font-size:15px;">
+            If you performed this action, you can safely continue using your account with your new password.
+          </p>
+
+          <p style="font-size:15px; margin-top:20px; color:#2e7d32;">
+            If this wasn't you, please secure your account immediately by resetting your password again
+            or contacting our support team.
+          </p>
+
+          <p style="font-size:15px; margin-top:8px;">
+            Regards,<br>
+            <strong style="color:#2e7d32;">EDHR Team</strong>
+          </p>
+
+        </td>
+      </tr>
+
+      <!-- Footer -->
+      <tr>
+        <td style="background:#f3f7f5; text-align:center; padding:15px; 
+            font-size:12px; color:#777; border-top:1px solid #e1ebe6;">
+          © ${new Date().getFullYear()} EDHR. All rights reserved.
+        </td>
+      </tr>
+
+    </table>
+
+  </body>
+</html>
+`;
+
+  sendEmail(user.email, "Password Reset Succesfully", htmlContentSuccess);
+
+  return res.json({
+    status: "Success",
+    message: "Password has been reset Succesfully",
   });
 });
