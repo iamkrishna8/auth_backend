@@ -2,7 +2,7 @@ const User = require("../model/userModel");
 const catchAsync = require("../utils/catchAsync");
 const AppError = require("../utils/appError");
 const jwt = require("jsonwebtoken");
-const transporter = require("../utils/nodeMailer");
+const sendEmail = require("../utils/nodeMailer");
 
 const signToken = (id) => {
   return jwt.sign({ id }, process.env.JWT_SECRET, {
@@ -51,20 +51,88 @@ exports.register = catchAsync(async (req, res, next) => {
   //   creating the user
   const newuser = await User.create(req.body);
 
-  // sending welcome email
-  const mailOptions = {
-    from: process.env.SENDER_EMAIL,
-    to: email,
-    subject: "Welcome to edhr",
-    text: `welcome to edhr.Your account has been created with  email id : ${email}`,
-  };
+  // sending welcome email using Brevo API
+  const htmlContent = `
+<html>
+  <body style="font-family: Arial, sans-serif; background-color:#eef5f1; padding:25px;">
 
-  console.log("SMTP_USER:", process.env.SMTP_USER);
-  console.log("SMTP_PASS:", process.env.SMTP_PASS);
-  console.log("SMTP_PORT:", process.env.SMTP_PORT);
-  console.log("SENDER_EMAIL:", process.env.SENDER_EMAIL);
+    <table width="100%" cellspacing="0" cellpadding="0" 
+      style="max-width:620px; margin:auto; background:#ffffff; border-radius:12px; 
+      overflow:hidden; border:1px solid #dce7e1; box-shadow:0 6px 20px rgba(0,0,0,0.08);">
 
-  await transporter.sendMail(mailOptions);
+      <!-- Header Banner -->
+      <tr>
+        <td style="padding:0;">
+          <img src="https://raw.githubusercontent.com/iamkrishna8/auth_frontend/main/testimage_email.png?raw=1"
+               alt="Welcome Banner"
+               style="width:100%; height:auto; display:block;">
+        </td>
+      </tr>
+
+      <!-- Header / Title -->
+      <tr>
+        <td style="background:#2e7d32; padding:22px; text-align:center; color:#ffffff;">
+          <h2 style="margin:0; font-size:26px; letter-spacing:0.5px;">
+            Welcome to EDHR
+          </h2>
+        </td>
+      </tr>
+
+      <!-- Body Content -->
+      <tr>
+        <td style="padding:30px; color:#333; line-height:1.7;">
+
+          <p style="margin-top:0; font-size:16px;">
+            Hello <strong>${name}</strong>,
+          </p>
+
+          <p style="font-size:15px;">
+            We are delighted to let you know that your EDHR account has been successfully created.
+            Your registered email is:
+            <br><strong>${email}</strong>
+          </p>
+
+          <p style="font-size:15px;">
+            You can now sign in to your dashboard and begin exploring all the tools and features designed 
+            to simplify your workflow and enhance your EDHR experience.
+          </p>
+
+          <p style="font-size:15px;">
+            If you ever need help, our support team is always available to assist you.
+          </p>
+
+          <p style="margin-top:25px; font-size:16px; color:#2e7d32;">
+            We are excited to have you with us — welcome to the EDHR family!
+          </p>
+
+          <p style="font-size:15px; margin-top:8px;">
+            Warm regards,<br>
+            <strong style="color:#2e7d32;">EDHR Team</strong>
+          </p>
+
+        </td>
+      </tr>
+
+      <!-- Footer -->
+      <tr>
+        <td style="background:#f3f7f5; text-align:center; padding:15px; 
+            font-size:12px; color:#777; border-top:1px solid #e1ebe6;">
+          © ${new Date().getFullYear()} EDHR. All rights reserved.
+        </td>
+      </tr>
+    </table>
+
+  </body>
+</html>
+`;
+
+  try {
+    await sendEmail(email, "Welcome to edhr", htmlContent);
+  } catch (error) {
+    console.error("Email sending failed:", error.message);
+    // Don't stop registration even if email fails
+  }
+
   createSendToken(newuser, 201, res);
 });
 

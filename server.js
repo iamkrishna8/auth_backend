@@ -1,3 +1,5 @@
+require("dotenv").config(); // Load .env at the very start
+
 const app = require("./app");
 const mongoose = require("mongoose");
 
