@@ -25,7 +25,7 @@ const createSendToken = (user, statusCode, res) => {
   user.password = undefined;
 
   res.status(statusCode).json({
-    status: "success",
+    success: true,
     token,
     data: {
       user,
@@ -148,17 +148,19 @@ exports.login = catchAsync(async (req, res, next) => {
   // checking the user exists and password is correct
 
   const user = await User.findOne({ email }).select("+password");
-  console.log(user);
 
   if (!user || !(await user.CorrectPassworrd(password, user.password))) {
-    return next(new AppError("Incorrect email or Password", 403));
+    return res.status(403).json({
+      success: false,
+      message: "Incorrect Email or Password",
+    });
   }
 
   createSendToken(user, 200, res);
 });
 
 exports.logout = catchAsync(async (req, res, next) => {
-  res.clearCookie("jwt", CookieOptions);
+  res.clearCookie("token", CookieOptions);
 
   res.status(200).json({
     status: "success",
